@@ -68,7 +68,7 @@ export default function MarkAttendancePage() {
     // If teacher IP is recorded (not localhost), strictly enforce match
     if (session.teacher_ip && session.teacher_ip !== '127.0.0.1' && studentIp !== '127.0.0.1' && studentIp !== session.teacher_ip) {
       setState('error')
-      setMessage('Network Lock: You must be connected to the exact same Wi-Fi network as the teacher to mark attendance.')
+      setMessage(`Network Lock: Your IP (${studentIp}) does not match Teacher IP (${session.teacher_ip}).`)
       return
     }
 
