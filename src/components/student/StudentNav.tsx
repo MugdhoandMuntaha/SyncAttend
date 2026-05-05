@@ -98,9 +98,14 @@ export default function StudentNav({ profile }: { profile: Profile }) {
         </div>
 
         {logoutError && (
-          <div className="absolute top-full right-4 mt-2 p-3 bg-gray-950 border border-red-500/50 text-red-400 text-sm rounded-lg flex items-center gap-2 animate-fade-in-up z-[100] max-w-sm shadow-2xl">
-            <AlertCircle className="w-4 h-4 shrink-0" />
-            {logoutError}
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
+            <div className="bg-gray-950 border border-red-500/50 p-6 rounded-2xl shadow-2xl max-w-sm w-full text-center animate-fade-in-up">
+              <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                <AlertCircle className="w-8 h-8 text-red-500" />
+              </div>
+              <h3 className="text-lg font-bold text-white mb-2">Action Blocked</h3>
+              <p className="text-gray-300 text-sm">{logoutError}</p>
+            </div>
           </div>
         )}
       </div>
