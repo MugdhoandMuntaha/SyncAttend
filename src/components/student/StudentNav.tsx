@@ -98,7 +98,7 @@ export default function StudentNav({ profile }: { profile: Profile }) {
         </div>
 
         {logoutError && (
-          <div className="absolute top-full right-4 mt-2 p-3 bg-red-500/10 border border-red-500/20 text-red-400 text-sm rounded-lg flex items-center gap-2 animate-fade-in-up z-50 max-w-sm shadow-xl backdrop-blur-md">
+          <div className="absolute top-full right-4 mt-2 p-3 bg-gray-950 border border-red-500/50 text-red-400 text-sm rounded-lg flex items-center gap-2 animate-fade-in-up z-[100] max-w-sm shadow-2xl">
             <AlertCircle className="w-4 h-4 shrink-0" />
             {logoutError}
           </div>
