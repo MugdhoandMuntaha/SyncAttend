@@ -65,8 +65,8 @@ export default function MarkAttendancePage() {
       console.warn('Could not fetch IP', e)
     }
 
-    // If teacher IP is recorded (not localhost), strictly enforce match
-    if (session.teacher_ip && session.teacher_ip !== '127.0.0.1' && studentIp !== '127.0.0.1') {
+    // If teacher IP is recorded (not localhost or bypass), strictly enforce match
+    if (session.teacher_ip && session.teacher_ip !== '127.0.0.1' && session.teacher_ip !== '0.0.0.0' && studentIp !== '127.0.0.1') {
       // Lenient matching: compare subnets (/16 for IPv4, /64 for IPv6) to handle complex Wi-Fi networks
       const getSubnet = (ip: string) => ip.includes(':') ? ip.split(':').slice(0, 4).join(':') : ip.split('.').slice(0, 2).join('.')
       

@@ -27,6 +27,7 @@ function SessionForm() {
   const [selectedCourse, setSelectedCourse] = useState('')
   const [topic, setTopic] = useState('')
   const [expiryMinutes, setExpiryMinutes] = useState(15)
+  const [allowMobileHotspot, setAllowMobileHotspot] = useState(false)
   const [loading, setLoading] = useState(false)
   const [sessionCode, setSessionCode] = useState('')
   const [sessionId, setSessionId] = useState('')
@@ -107,6 +108,10 @@ function SessionForm() {
       teacherIp = ipData.ip
     } catch (e) {
       console.warn('Could not fetch IP', e)
+    }
+
+    if (allowMobileHotspot) {
+      teacherIp = '0.0.0.0' // Bypass network lock
     }
 
     const { data, error } = await supabase
@@ -219,6 +224,19 @@ function SessionForm() {
                 <div className="flex justify-between text-xs text-gray-500 mt-1">
                   <span>5 min</span><span>15 min</span><span>30 min</span>
                 </div>
+              </div>
+
+              <div className="flex items-center gap-3 p-3 bg-gray-800/40 border border-gray-700/50 rounded-lg">
+                <input
+                  type="checkbox"
+                  id="hotspot-toggle"
+                  checked={allowMobileHotspot}
+                  onChange={(e) => setAllowMobileHotspot(e.target.checked)}
+                  className="w-4 h-4 text-indigo-600 bg-gray-700 border-gray-600 rounded focus:ring-indigo-500 focus:ring-2"
+                />
+                <label htmlFor="hotspot-toggle" className="text-sm font-medium text-gray-300 cursor-pointer select-none">
+                  Allow Mobile Hotspot (Disables Network Lock)
+                </label>
               </div>
 
               <button
