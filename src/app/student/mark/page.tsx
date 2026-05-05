@@ -66,10 +66,15 @@ export default function MarkAttendancePage() {
     }
 
     // If teacher IP is recorded (not localhost), strictly enforce match
-    if (session.teacher_ip && session.teacher_ip !== '127.0.0.1' && studentIp !== '127.0.0.1' && studentIp !== session.teacher_ip) {
-      setState('error')
-      setMessage(`Network Lock: Your IP (${studentIp}) does not match Teacher IP (${session.teacher_ip}).`)
-      return
+    if (session.teacher_ip && session.teacher_ip !== '127.0.0.1' && studentIp !== '127.0.0.1') {
+      // Lenient matching: compare subnets (/16 for IPv4, /64 for IPv6) to handle complex Wi-Fi networks
+      const getSubnet = (ip: string) => ip.includes(':') ? ip.split(':').slice(0, 4).join(':') : ip.split('.').slice(0, 2).join('.')
+      
+      if (studentIp !== session.teacher_ip && getSubnet(studentIp) !== getSubnet(session.teacher_ip)) {
+        setState('error')
+        setMessage(`Network Lock: Your IP (${studentIp}) does not match Teacher IP (${session.teacher_ip}).`)
+        return
+      }
     }
 
     // 3. Check if student is enrolled in this course
