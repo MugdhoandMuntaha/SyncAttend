@@ -1,8 +1,3 @@
--- ============================================
--- SyncAttend - Supabase Database Schema
--- Run this in your Supabase SQL Editor
--- ============================================
-
 -- 1. PROFILES TABLE (extends auth.users)
 CREATE TABLE IF NOT EXISTS public.profiles (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,

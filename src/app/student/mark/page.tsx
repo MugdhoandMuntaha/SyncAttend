@@ -17,7 +17,7 @@ export default function MarkAttendancePage() {
     const value = `; ${document.cookie}`
     const parts = value.split(`; ${name}=`)
     if (parts.length === 2) return parts.pop()?.split(';').shift()
-    return crypto.randomUUID() // Fallback if missing
+    return crypto.randomUUID()
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -35,7 +35,6 @@ export default function MarkAttendancePage() {
       return
     }
 
-    // 1. Find the session by code
     const { data: session, error: sessionError } = await supabase
       .from('attendance_sessions')
       .select('id, course_id, expires_at, is_active, teacher_ip, courses(course_name, course_code), session_date')
@@ -48,14 +47,12 @@ export default function MarkAttendancePage() {
       return
     }
 
-    // 2. Check if expired
     if (new Date(session.expires_at) < new Date() || !session.is_active) {
       setState('error')
       setMessage('This session code has expired. Ask your teacher for a new one.')
       return
     }
 
-    // 2.5 Fetch Student IP and Validate Network Lock
     let studentIp = '127.0.0.1'
     try {
       const res = await fetch('/api/ip')
@@ -65,9 +62,7 @@ export default function MarkAttendancePage() {
       console.warn('Could not fetch IP', e)
     }
 
-    // If teacher IP is recorded (not localhost or bypass), strictly enforce match
     if (session.teacher_ip && session.teacher_ip !== '127.0.0.1' && session.teacher_ip !== '0.0.0.0' && studentIp !== '127.0.0.1') {
-      // Lenient matching: compare subnets (/16 for IPv4, /64 for IPv6) to handle complex Wi-Fi networks
       const getSubnet = (ip: string) => ip.includes(':') ? ip.split(':').slice(0, 4).join(':') : ip.split('.').slice(0, 2).join('.')
       
       if (studentIp !== session.teacher_ip && getSubnet(studentIp) !== getSubnet(session.teacher_ip)) {
@@ -77,7 +72,6 @@ export default function MarkAttendancePage() {
       }
     }
 
-    // 3. Check if student is enrolled in this course
     const { data: enrollment } = await supabase
       .from('enrollments')
       .select('id')
@@ -91,7 +85,6 @@ export default function MarkAttendancePage() {
       return
     }
 
-    // 4. Check for duplicate submission
     const { data: existing } = await supabase
       .from('attendance_records')
       .select('id')
@@ -105,11 +98,9 @@ export default function MarkAttendancePage() {
       return
     }
 
-    // 4.5 Biometric Fingerprint Verification
     try {
-      setState('loading') // Ensure loading state is active
+      setState('loading')
       
-      // Get authentication options
       const authGenResp = await fetch('/api/webauthn/authenticate/generate', { method: 'POST' })
       if (!authGenResp.ok) {
         const errData = await authGenResp.json()
@@ -117,10 +108,8 @@ export default function MarkAttendancePage() {
       }
       const authOptions = await authGenResp.json()
 
-      // Prompt the physical fingerprint sensor
       const authResult = await startAuthentication(authOptions)
 
-      // Verify the cryptographic signature
       const authVerifyResp = await fetch('/api/webauthn/authenticate/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -142,13 +131,11 @@ export default function MarkAttendancePage() {
       return
     }
 
-    // 5. Determine status: present or late (last 5 mins = late)
     const expiryTime = new Date(session.expires_at).getTime()
     const nowTime = new Date().getTime()
-    const sessionDurationMs = 15 * 60 * 1000 // assume 15 min default
+    const sessionDurationMs = 15 * 60 * 1000
     const status = (expiryTime - nowTime) < (5 * 60 * 1000) ? 'late' : 'present'
 
-    // 6. Mark attendance
     const deviceId = getCookie('device_id')
     const { error: markError } = await supabase.from('attendance_records').insert({
       session_id: session.id,
@@ -257,7 +244,7 @@ export default function MarkAttendancePage() {
             </button>
           </form>
 
-          {/* Anti-cheat notice */}
+          {}
           <div className="mt-5 p-3 rounded-xl bg-amber-500/5 border border-amber-500/15">
             <p className="text-xs text-amber-400/80 text-center flex flex-col gap-1">
               <span>🔒 <strong>Biometric Lock Active:</strong> Your physical fingerprint is required.</span>

@@ -8,7 +8,6 @@ export default async function StudentDashboard() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  // Get enrolled course IDs
   const { data: enrollments, error: enrollError } = await supabase
     .from('enrollments')
     .select('course_id')
@@ -18,25 +17,21 @@ export default async function StudentDashboard() {
 
   const courseIds = enrollments?.map(e => e.course_id) ?? []
 
-  // Get course details separately
   const { data: courses } = await supabase
     .from('courses')
     .select('id, course_code, course_name')
     .in('id', courseIds.length > 0 ? courseIds : ['00000000-0000-0000-0000-000000000000'])
 
-  // Get total sessions per course
   const { data: allSessions } = await supabase
     .from('attendance_sessions')
     .select('id, course_id')
     .in('course_id', courseIds.length > 0 ? courseIds : ['00000000-0000-0000-0000-000000000000'])
 
-  // Get this student's attendance records
   const { data: myRecords } = await supabase
     .from('attendance_records')
     .select('course_id, session_id, status, marked_at')
     .eq('student_id', user!.id)
 
-  // Build per-course stats from flat data
   const courseStats = (courses ?? []).map(course => {
     const totalSessions = allSessions?.filter(s => s.course_id === course.id).length ?? 0
     const attended = myRecords?.filter(r => r.course_id === course.id).length ?? 0
@@ -49,7 +44,7 @@ export default async function StudentDashboard() {
 
   return (
     <div className="space-y-8">
-      {/* Header */}
+      {}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-white">My Dashboard</h1>
@@ -64,7 +59,7 @@ export default async function StudentDashboard() {
         </Link>
       </div>
 
-      {/* Stats */}
+      {}
       <div className="grid grid-cols-3 gap-4">
         <div className="glass rounded-2xl p-5">
           <div className="w-10 h-10 bg-indigo-500/10 rounded-xl flex items-center justify-center text-indigo-400 mb-3">
@@ -89,7 +84,7 @@ export default async function StudentDashboard() {
         </div>
       </div>
 
-      {/* Quick Action Banner */}
+      {}
       <div className="relative overflow-hidden glass rounded-2xl p-6 border border-indigo-500/20">
         <div className="absolute right-0 top-0 w-48 h-48 bg-indigo-600/10 rounded-full blur-2xl -translate-y-1/2 translate-x-1/4" />
         <div className="relative flex items-center justify-between">
@@ -107,10 +102,10 @@ export default async function StudentDashboard() {
         </div>
       </div>
 
-      {/* Biometric Security Registration */}
+      {}
       <WebAuthnRegister />
 
-      {/* Courses */}
+      {}
       <div>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-semibold text-white">My Courses</h2>
@@ -143,7 +138,7 @@ export default async function StudentDashboard() {
                   {course.attended} / {course.totalSessions} sessions attended
                 </div>
 
-                {/* Progress bar */}
+                {}
                 <div className="mb-1">
                   <div className="flex justify-between text-xs mb-1.5">
                     <span className="text-gray-500">Attendance</span>

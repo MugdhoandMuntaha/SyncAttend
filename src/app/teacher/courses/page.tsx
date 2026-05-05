@@ -7,7 +7,6 @@ export default async function CoursesPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  // Simple flat query — no nested joins
   const { data: courses, error } = await supabase
     .from('courses')
     .select('id, course_code, course_name, created_at')
@@ -16,19 +15,16 @@ export default async function CoursesPage() {
 
   if (error) console.error('Courses fetch error:', error)
 
-  // Get enrollment counts separately
   const { data: enrollmentCounts } = await supabase
     .from('enrollments')
     .select('course_id')
     .in('course_id', courses?.map(c => c.id) ?? [])
 
-  // Get session counts separately
   const { data: sessionCounts } = await supabase
     .from('attendance_sessions')
     .select('id, course_id')
     .eq('teacher_id', user!.id)
 
-  // Build combined stats
   const coursesWithStats = (courses ?? []).map(course => ({
     ...course,
     enrolled: enrollmentCounts?.filter(e => e.course_id === course.id).length ?? 0,
