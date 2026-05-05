@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import { GraduationCap, LayoutDashboard, KeyRound, History, LogOut, Menu, X } from 'lucide-react'
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
+import { AlertCircle } from 'lucide-react'
 
 interface Profile {
   full_name: string
@@ -23,9 +24,23 @@ export default function StudentNav({ profile }: { profile: Profile }) {
   const pathname = usePathname()
   const router = useRouter()
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [logoutError, setLogoutError] = useState('')
 
   const handleLogout = async () => {
     const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+
+    if (user?.last_sign_in_at) {
+      const lastSignIn = new Date(user.last_sign_in_at)
+      const today = new Date()
+      
+      if (lastSignIn.toDateString() === today.toDateString()) {
+        setLogoutError('Security Lock: To prevent proxy attendance, you cannot log out on the same day you signed in.')
+        setTimeout(() => setLogoutError(''), 5000)
+        return
+      }
+    }
+
     await supabase.auth.signOut()
     router.push('/login')
   }
@@ -81,6 +96,13 @@ export default function StudentNav({ profile }: { profile: Profile }) {
             </button>
           </div>
         </div>
+
+        {logoutError && (
+          <div className="absolute top-full right-4 mt-2 p-3 bg-red-500/10 border border-red-500/20 text-red-400 text-sm rounded-lg flex items-center gap-2 animate-fade-in-up z-50 max-w-sm shadow-xl backdrop-blur-md">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            {logoutError}
+          </div>
+        )}
       </div>
 
       {mobileOpen && (
