@@ -99,6 +99,16 @@ function SessionForm() {
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
 
+    // Capture teacher's IP for network lock
+    let teacherIp = '127.0.0.1'
+    try {
+      const res = await fetch('/api/ip')
+      const ipData = await res.json()
+      teacherIp = ipData.ip
+    } catch (e) {
+      console.warn('Could not fetch IP', e)
+    }
+
     const { data, error } = await supabase
       .from('attendance_sessions')
       .insert({
@@ -109,6 +119,7 @@ function SessionForm() {
         topic: topic || null,
         expires_at: expiry,
         is_active: true,
+        teacher_ip: teacherIp,
       })
       .select()
       .single()

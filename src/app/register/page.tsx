@@ -53,6 +53,12 @@ function RegisterForm() {
       return
     }
 
+    if (data.user?.identities && data.user.identities.length === 0) {
+      setError('An account with this email already exists. Please sign in instead.')
+      setLoading(false)
+      return
+    }
+
     if (data.user) {
       const { error: profileError } = await supabase.from('profiles').insert({
         id: data.user.id,

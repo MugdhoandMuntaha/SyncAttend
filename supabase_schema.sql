@@ -47,6 +47,7 @@ CREATE TABLE IF NOT EXISTS public.attendance_sessions (
   created_at TIMESTAMPTZ DEFAULT NOW(),
   expires_at TIMESTAMPTZ NOT NULL,
   is_active BOOLEAN DEFAULT TRUE,
+  teacher_ip TEXT,
   CONSTRAINT session_code_length CHECK (char_length(session_code) = 6)
 );
 
@@ -63,8 +64,10 @@ CREATE TABLE IF NOT EXISTS public.attendance_records (
   course_id UUID NOT NULL REFERENCES public.courses(id) ON DELETE CASCADE,
   marked_at TIMESTAMPTZ DEFAULT NOW(),
   ip_address TEXT,
+  device_id TEXT NOT NULL,
   status TEXT DEFAULT 'present' CHECK (status IN ('present', 'late')),
-  UNIQUE(session_id, student_id)  -- ANTI-CHEAT: one record per student per session
+  UNIQUE(session_id, student_id),  -- ANTI-CHEAT: one record per student per session
+  UNIQUE(session_id, device_id)    -- ANTI-CHEAT: one record per device per session
 );
 
 -- Indexes for reporting
@@ -123,7 +126,7 @@ AS $$
 $$;
 
 -- Allow reading all student profiles (needed for enroll page)
-DROP POLICY IF EXISTS "Service role can view all profiles" ON public.profiles;
+DROP POLICY IF EXISTS "Authenticated users can view all profiles" ON public.profiles;
 CREATE POLICY "Authenticated users can view all profiles" ON public.profiles
   FOR SELECT USING (auth.role() = 'authenticated');
 
@@ -228,3 +231,29 @@ JOIN public.courses c ON c.id = e.course_id
 LEFT JOIN public.attendance_sessions s ON s.course_id = e.course_id
 LEFT JOIN public.attendance_records ar ON ar.session_id = s.id AND ar.student_id = e.student_id
 GROUP BY e.student_id, e.course_id, p.full_name, p.roll_number, c.course_name, c.course_code;
+
+-- ============================================
+-- 6. PASSKEYS TABLE (For WebAuthn Biometrics)
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS public.passkeys (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  student_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  credential_id TEXT NOT NULL UNIQUE,
+  public_key TEXT NOT NULL,
+  counter BIGINT NOT NULL DEFAULT 0,
+  device_type TEXT NOT NULL,
+  backed_up BOOLEAN NOT NULL DEFAULT FALSE,
+  transports TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  last_used_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_passkeys_student ON public.passkeys(student_id);
+
+ALTER TABLE public.passkeys ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Students can manage own passkeys" ON public.passkeys;
+CREATE POLICY "Students can manage own passkeys" ON public.passkeys
+  FOR ALL USING (student_id = auth.uid())
+  WITH CHECK (student_id = auth.uid());

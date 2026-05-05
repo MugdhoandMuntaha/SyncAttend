@@ -2,7 +2,8 @@
 
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { KeyRound, Loader2, AlertCircle, CheckCircle2, ShieldCheck, Clock } from 'lucide-react'
+import { KeyRound, Loader2, AlertCircle, CheckCircle2, ShieldCheck, Clock, Fingerprint } from 'lucide-react'
+import { startAuthentication } from '@simplewebauthn/browser'
 
 type SubmitState = 'idle' | 'loading' | 'success' | 'error'
 
@@ -11,6 +12,13 @@ export default function MarkAttendancePage() {
   const [state, setState] = useState<SubmitState>('idle')
   const [message, setMessage] = useState('')
   const [sessionInfo, setSessionInfo] = useState<{ course: string; date: string } | null>(null)
+
+  const getCookie = (name: string) => {
+    const value = `; ${document.cookie}`
+    const parts = value.split(`; ${name}=`)
+    if (parts.length === 2) return parts.pop()?.split(';').shift()
+    return crypto.randomUUID() // Fallback if missing
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -30,7 +38,7 @@ export default function MarkAttendancePage() {
     // 1. Find the session by code
     const { data: session, error: sessionError } = await supabase
       .from('attendance_sessions')
-      .select('id, course_id, expires_at, is_active, courses(course_name, course_code), session_date')
+      .select('id, course_id, expires_at, is_active, teacher_ip, courses(course_name, course_code), session_date')
       .eq('session_code', code.toUpperCase())
       .single()
 
@@ -44,6 +52,23 @@ export default function MarkAttendancePage() {
     if (new Date(session.expires_at) < new Date() || !session.is_active) {
       setState('error')
       setMessage('This session code has expired. Ask your teacher for a new one.')
+      return
+    }
+
+    // 2.5 Fetch Student IP and Validate Network Lock
+    let studentIp = '127.0.0.1'
+    try {
+      const res = await fetch('/api/ip')
+      const ipData = await res.json()
+      studentIp = ipData.ip
+    } catch (e) {
+      console.warn('Could not fetch IP', e)
+    }
+
+    // If teacher IP is recorded (not localhost), strictly enforce match
+    if (session.teacher_ip && session.teacher_ip !== '127.0.0.1' && studentIp !== '127.0.0.1' && studentIp !== session.teacher_ip) {
+      setState('error')
+      setMessage('Network Lock: You must be connected to the exact same Wi-Fi network as the teacher to mark attendance.')
       return
     }
 
@@ -75,6 +100,43 @@ export default function MarkAttendancePage() {
       return
     }
 
+    // 4.5 Biometric Fingerprint Verification
+    try {
+      setState('loading') // Ensure loading state is active
+      
+      // Get authentication options
+      const authGenResp = await fetch('/api/webauthn/authenticate/generate', { method: 'POST' })
+      if (!authGenResp.ok) {
+        const errData = await authGenResp.json()
+        throw new Error(errData.error || 'Failed to initialize biometric sensor. Please register a device first.')
+      }
+      const authOptions = await authGenResp.json()
+
+      // Prompt the physical fingerprint sensor
+      const authResult = await startAuthentication(authOptions)
+
+      // Verify the cryptographic signature
+      const authVerifyResp = await fetch('/api/webauthn/authenticate/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(authResult)
+      })
+
+      if (!authVerifyResp.ok) {
+        const errData = await authVerifyResp.json()
+        throw new Error(errData.error || 'Biometric verification failed.')
+      }
+    } catch (err: any) {
+      console.error(err)
+      setState('error')
+      if (err.name === 'NotAllowedError') {
+        setMessage('Biometric scan was cancelled or denied.')
+      } else {
+        setMessage(err.message || 'Fingerprint verification failed. Ensure you have registered your device.')
+      }
+      return
+    }
+
     // 5. Determine status: present or late (last 5 mins = late)
     const expiryTime = new Date(session.expires_at).getTime()
     const nowTime = new Date().getTime()
@@ -82,19 +144,23 @@ export default function MarkAttendancePage() {
     const status = (expiryTime - nowTime) < (5 * 60 * 1000) ? 'late' : 'present'
 
     // 6. Mark attendance
+    const deviceId = getCookie('device_id')
     const { error: markError } = await supabase.from('attendance_records').insert({
       session_id: session.id,
       student_id: user.id,
       course_id: session.course_id,
       status,
+      ip_address: studentIp,
+      device_id: deviceId
     })
 
     if (markError) {
-      if (markError.message.includes('unique') || markError.code === '23505') {
-        setState('error')
-        setMessage('Attendance already marked for this session.')
+      setState('error')
+      if (markError.message.includes('attendance_records_session_id_device_id_key')) {
+        setMessage('Security Block: This physical device has already been used to mark attendance for this session.')
+      } else if (markError.message.includes('attendance_records_session_id_student_id_key') || markError.code === '23505') {
+        setMessage('You have already marked attendance for this session.')
       } else {
-        setState('error')
         setMessage(markError.message)
       }
       return
@@ -181,15 +247,16 @@ export default function MarkAttendancePage() {
               disabled={state === 'loading' || code.length < 6}
               className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-900 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-all flex items-center justify-center gap-2"
             >
-              {state === 'loading' ? <Loader2 className="w-5 h-5 animate-spin" /> : <ShieldCheck className="w-5 h-5" />}
-              {state === 'loading' ? 'Verifying...' : 'Submit Attendance'}
+              {state === 'loading' ? <Loader2 className="w-5 h-5 animate-spin" /> : <Fingerprint className="w-5 h-5" />}
+              {state === 'loading' ? 'Verifying...' : 'Scan Fingerprint & Submit'}
             </button>
           </form>
 
           {/* Anti-cheat notice */}
           <div className="mt-5 p-3 rounded-xl bg-amber-500/5 border border-amber-500/15">
-            <p className="text-xs text-amber-400/80 text-center">
-              🔒 Your submission is time-stamped and IP-logged. Each code can only be used once per student.
+            <p className="text-xs text-amber-400/80 text-center flex flex-col gap-1">
+              <span>🔒 <strong>Biometric Lock Active:</strong> Your physical fingerprint is required.</span>
+              <span>You must be on the classroom Wi-Fi. 1 device = 1 attendance.</span>
             </p>
           </div>
         </div>

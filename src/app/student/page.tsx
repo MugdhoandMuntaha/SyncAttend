@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import { KeyRound, BookOpen, TrendingUp, AlertTriangle, CalendarDays, ArrowRight } from 'lucide-react'
 import { getAttendanceBg, getAttendanceColor } from '@/lib/utils'
+import { WebAuthnRegister } from '@/components/student/WebAuthnRegister'
 
 export default async function StudentDashboard() {
   const supabase = await createClient()
@@ -105,6 +106,9 @@ export default async function StudentDashboard() {
           </Link>
         </div>
       </div>
+
+      {/* Biometric Security Registration */}
+      <WebAuthnRegister />
 
       {/* Courses */}
       <div>

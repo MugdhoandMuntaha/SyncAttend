@@ -4,6 +4,19 @@ import { createServerClient } from '@supabase/ssr'
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
 
+  // Anti-Cheat: Generate persistent device fingerprint
+  let deviceId = request.cookies.get('device_id')?.value
+  if (!deviceId) {
+    deviceId = crypto.randomUUID()
+    supabaseResponse.cookies.set('device_id', deviceId, {
+      httpOnly: false,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 60 * 60 * 24 * 365, // 1 year
+    })
+  }
+
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -64,8 +77,8 @@ export async function middleware(request: NextRequest) {
       .eq('id', user.id)
       .single()
 
-    if (profile?.role !== 'teacher') {
-      return NextResponse.redirect(new URL('/student', request.url))
+    if (!profile || profile.role !== 'teacher') {
+      return NextResponse.redirect(new URL(profile?.role === 'student' ? '/student' : '/login', request.url))
     }
   }
 
@@ -76,8 +89,8 @@ export async function middleware(request: NextRequest) {
       .eq('id', user.id)
       .single()
 
-    if (profile?.role !== 'student') {
-      return NextResponse.redirect(new URL('/teacher', request.url))
+    if (!profile || profile.role !== 'student') {
+      return NextResponse.redirect(new URL(profile?.role === 'teacher' ? '/teacher' : '/login', request.url))
     }
   }
 

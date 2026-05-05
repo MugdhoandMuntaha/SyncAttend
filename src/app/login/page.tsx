@@ -39,9 +39,13 @@ export default function LoginPage() {
         .single()
 
       if (profile?.role === 'teacher') {
-        router.push('/teacher')
+        window.location.href = '/teacher'
+      } else if (profile?.role === 'student') {
+        window.location.href = '/student'
       } else {
-        router.push('/student')
+        setError('Profile missing or incomplete. Please register again.')
+        await supabase.auth.signOut()
+        setLoading(false)
       }
     }
   }
