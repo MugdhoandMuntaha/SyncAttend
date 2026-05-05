@@ -38,7 +38,7 @@ export default function StudentNav({ profile }: { profile: Profile }) {
             <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
               <GraduationCap className="w-5 h-5 text-white" />
             </div>
-            <span className="text-lg font-bold text-white hidden sm:block">AttendEase</span>
+            <span className="text-lg font-bold text-white hidden sm:block">SyncAttend</span>
             <span className="text-xs text-emerald-400 bg-emerald-600/15 px-1.5 py-0.5 rounded ml-0.5 hidden sm:block">Student</span>
           </Link>
 

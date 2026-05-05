@@ -17,7 +17,7 @@ export default function LandingPage() {
           <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
             <GraduationCap className="w-5 h-5 text-white" />
           </div>
-          <span className="text-xl font-bold text-white">AttendEase</span>
+          <span className="text-xl font-bold text-white">SyncAttend</span>
         </div>
         <div className="flex items-center gap-3">
           <Link
@@ -137,7 +137,7 @@ export default function LandingPage() {
 
       {/* Footer */}
       <footer className="relative z-10 text-center py-8 text-gray-600 text-sm border-t border-gray-800">
-        <p>AttendEase — Built with Next.js + Supabase | DBMS Project</p>
+        <p>SyncAttend — Built with Next.js + Supabase | DBMS Project</p>
       </footer>
     </div>
   )

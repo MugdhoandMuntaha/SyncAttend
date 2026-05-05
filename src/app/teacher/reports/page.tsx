@@ -3,8 +3,9 @@
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
-import { ArrowLeft, Users, TrendingUp, AlertTriangle, BookOpen, ChevronDown, Loader2 } from 'lucide-react'
+import { ArrowLeft, Users, TrendingUp, AlertTriangle, BookOpen, ChevronDown, Loader2, Download, Check, X, Clock } from 'lucide-react'
 import { getAttendanceBg, getAttendanceColor } from '@/lib/utils'
+import * as XLSX from 'xlsx'
 
 type Course = { id: string; course_code: string; course_name: string }
 type StudentStat = {
@@ -15,6 +16,7 @@ type StudentStat = {
   presentCount: number
   percentage: number
   totalSessions: number
+  attendanceBySession: Record<string, string>
 }
 type Session = {
   id: string
@@ -68,12 +70,12 @@ export default function ReportsPage() {
     setLoading(true)
     const supabase = createClient()
 
-    // Sessions for this course
+    // Sessions for this course (ascending order for columns)
     const { data: sessionsData } = await supabase
       .from('attendance_sessions')
       .select('id, session_date, topic, session_code, expires_at')
       .eq('course_id', selectedCourseId)
-      .order('session_date', { ascending: false })
+      .order('session_date', { ascending: true })
 
     const total = sessionsData?.length ?? 0
     setTotalSessions(total)
@@ -104,6 +106,13 @@ export default function ReportsPage() {
       const records = allRecords?.filter(r => r.student_id === profile.id) ?? []
       const presentCount = records.filter(r => r.status === 'present' || r.status === 'late').length
       const percentage = total > 0 ? Math.round((presentCount / total) * 100) : 0
+      
+      const attendanceBySession: Record<string, string> = {}
+      sessionsData?.forEach(session => {
+        const record = records.find(r => r.session_id === session.id)
+        attendanceBySession[session.id] = record ? record.status : 'absent'
+      })
+
       return {
         student_id: profile.id,
         full_name: profile.full_name,
@@ -112,8 +121,9 @@ export default function ReportsPage() {
         presentCount,
         percentage,
         totalSessions: total,
+        attendanceBySession
       }
-    }).sort((a, b) => b.percentage - a.percentage)
+    }).sort((a, b) => (a.roll_number || '').localeCompare(b.roll_number || '')) // Sort by roll number
     setStudentStats(stats)
 
     // Session list with mark counts
@@ -132,6 +142,43 @@ export default function ReportsPage() {
   const atRisk = studentStats.filter(s => s.percentage < 75).length
   const selectedCourse = courses.find(c => c.id === selectedCourseId)
 
+  const exportToExcel = () => {
+    if (!selectedCourse) return;
+    
+    const data = studentStats.map(student => {
+      const row: any = {
+        'Student Name': student.full_name,
+        'Roll Number': student.roll_number || 'N/A',
+        'Email': student.email,
+        'Sessions Attended': student.presentCount,
+        'Total Sessions': student.totalSessions,
+        'Attendance Percentage (%)': student.percentage,
+        'Status': student.percentage < 75 ? 'At Risk' : 'Good'
+      }
+
+      // Add dynamic date columns
+      sessions.forEach((session, index) => {
+        const dateStr = new Date(session.session_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+        const status = student.attendanceBySession[session.id]
+        row[`${dateStr} (S${index + 1})`] = status.charAt(0).toUpperCase() + status.slice(1) // Present, Late, Absent
+      })
+
+      return row
+    });
+
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Attendance Report');
+    
+    XLSX.writeFile(workbook, `${selectedCourse.course_code}_Attendance_Report.xlsx`);
+  }
+
+  const renderStatusIcon = (status: string) => {
+    if (status === 'present') return <Check className="w-4 h-4 text-emerald-400 mx-auto" />
+    if (status === 'late') return <Clock className="w-4 h-4 text-amber-400 mx-auto" />
+    return <X className="w-4 h-4 text-red-400 mx-auto opacity-50" />
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
@@ -140,7 +187,7 @@ export default function ReportsPage() {
         </Link>
         <div>
           <h1 className="text-3xl font-bold text-white">Attendance Reports</h1>
-          <p className="text-gray-400 mt-1">View detailed attendance analytics</p>
+          <p className="text-gray-400 mt-1">View detailed date-wise attendance analytics</p>
         </div>
       </div>
 
@@ -191,13 +238,24 @@ export default function ReportsPage() {
           </div>
 
           {/* Student Table */}
-          <div className="glass rounded-2xl overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-800">
+          <div className="glass rounded-2xl overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-800 bg-gray-900/50">
               <div className="flex items-center gap-2">
                 <Users className="w-4 h-4 text-indigo-400" />
-                <h2 className="font-semibold text-white">Student Attendance</h2>
+                <h2 className="font-semibold text-white">Date-wise Student Attendance</h2>
               </div>
-              <span className="text-xs text-gray-500">{studentStats.length} students</span>
+              <div className="flex items-center gap-4">
+                <span className="text-xs text-gray-500">{studentStats.length} students</span>
+                {studentStats.length > 0 && (
+                  <button
+                    onClick={exportToExcel}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 rounded-lg text-xs font-medium transition-colors"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    Export Excel
+                  </button>
+                )}
+              </div>
             </div>
             {studentStats.length === 0 ? (
               <div className="text-center py-12">
@@ -206,53 +264,42 @@ export default function ReportsPage() {
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full">
+                <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="border-b border-gray-800">
-                      <th className="text-left text-xs font-medium text-gray-400 uppercase tracking-wider px-5 py-3">Student</th>
-                      <th className="text-left text-xs font-medium text-gray-400 uppercase tracking-wider px-5 py-3">Roll No</th>
-                      <th className="text-left text-xs font-medium text-gray-400 uppercase tracking-wider px-5 py-3">Attended</th>
-                      <th className="text-left text-xs font-medium text-gray-400 uppercase tracking-wider px-5 py-3">Percentage</th>
-                      <th className="text-left text-xs font-medium text-gray-400 uppercase tracking-wider px-5 py-3">Status</th>
+                      <th className="sticky left-0 z-10 bg-[#161b22] px-5 py-3 text-xs font-medium text-gray-400 uppercase tracking-wider border-r border-gray-800/50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)]">Student</th>
+                      <th className="px-4 py-3 text-xs font-medium text-gray-400 uppercase tracking-wider text-center border-r border-gray-800/50">Total</th>
+                      <th className="px-4 py-3 text-xs font-medium text-gray-400 uppercase tracking-wider text-center border-r border-gray-800/50">Pct</th>
+                      {sessions.map((session, index) => (
+                        <th key={session.id} className="px-3 py-3 text-xs font-medium text-gray-400 uppercase tracking-wider text-center min-w-[70px]">
+                          <div className="flex flex-col items-center">
+                            <span>S{index + 1}</span>
+                            <span className="text-[10px] text-gray-500 mt-0.5">{new Date(session.session_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                          </div>
+                        </th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-800/50">
                     {studentStats.map((student) => (
-                      <tr key={student.student_id} className="hover:bg-white/[0.03] transition-colors">
-                        <td className="px-5 py-3.5">
-                          <p className="text-sm font-medium text-white">{student.full_name}</p>
-                          <p className="text-xs text-gray-500">{student.email}</p>
+                      <tr key={student.student_id} className="hover:bg-white/[0.03] transition-colors group">
+                        <td className="sticky left-0 z-10 bg-[#161b22] group-hover:bg-[#1c2128] px-5 py-3 border-r border-gray-800/50 transition-colors shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)]">
+                          <p className="text-sm font-medium text-white whitespace-nowrap">{student.full_name}</p>
+                          <p className="text-xs text-gray-500">{student.roll_number ?? '—'}</p>
                         </td>
-                        <td className="px-5 py-3.5 text-sm text-gray-400">{student.roll_number ?? '—'}</td>
-                        <td className="px-5 py-3.5 text-sm text-gray-300">
-                          {student.presentCount} / {student.totalSessions}
+                        <td className="px-4 py-3 text-sm text-gray-300 text-center border-r border-gray-800/50">
+                          {student.presentCount}/{student.totalSessions}
                         </td>
-                        <td className="px-5 py-3.5">
-                          <div className="flex items-center gap-3">
-                            <div className="flex-1 bg-gray-800 rounded-full h-1.5 max-w-24">
-                              <div
-                                className={`h-1.5 rounded-full ${getAttendanceBg(student.percentage)}`}
-                                style={{ width: `${student.percentage}%` }}
-                              />
-                            </div>
-                            <span className={`text-sm font-semibold ${getAttendanceColor(student.percentage)}`}>
-                              {student.percentage}%
-                            </span>
-                          </div>
+                        <td className="px-4 py-3 text-center border-r border-gray-800/50">
+                          <span className={`text-sm font-semibold ${getAttendanceColor(student.percentage)}`}>
+                            {student.percentage}%
+                          </span>
                         </td>
-                        <td className="px-5 py-3.5">
-                          {student.percentage < 75 ? (
-                            <span className="flex items-center gap-1 text-xs text-red-400 bg-red-500/10 px-2 py-1 rounded-full w-fit">
-                              <AlertTriangle className="w-3 h-3" />
-                              At Risk
-                            </span>
-                          ) : (
-                            <span className="flex items-center gap-1 text-xs text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded-full w-fit">
-                              <TrendingUp className="w-3 h-3" />
-                              Good
-                            </span>
-                          )}
-                        </td>
+                        {sessions.map(session => (
+                          <td key={session.id} className="px-3 py-3 text-center" title={`${student.full_name} - ${new Date(session.session_date).toLocaleDateString()}`}>
+                            {renderStatusIcon(student.attendanceBySession[session.id])}
+                          </td>
+                        ))}
                       </tr>
                     ))}
                   </tbody>
@@ -261,38 +308,18 @@ export default function ReportsPage() {
             )}
           </div>
 
-          {/* Sessions List */}
-          {sessions.length > 0 && (
-            <div className="glass rounded-2xl overflow-hidden">
-              <div className="px-5 py-4 border-b border-gray-800">
-                <h2 className="font-semibold text-white">All Sessions</h2>
-              </div>
-              <div className="divide-y divide-gray-800/50">
-                {sessions.map((session) => {
-                  const isExpired = new Date(session.expires_at) < new Date()
-                  return (
-                    <div key={session.id} className="px-5 py-3.5 hover:bg-white/[0.03] transition-colors flex items-center justify-between">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-xs text-indigo-300 bg-indigo-950/50 px-2 py-0.5 rounded">{session.session_code}</span>
-                          <span className="text-sm text-white">
-                            {new Date(session.session_date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
-                          </span>
-                        </div>
-                        {session.topic && <p className="text-xs text-gray-500 mt-0.5">{session.topic}</p>}
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <span className="text-sm text-gray-300">{session.marked} marked</span>
-                        <span className={`text-xs px-2 py-0.5 rounded-full ${isExpired ? 'bg-gray-800 text-gray-500' : 'bg-emerald-500/20 text-emerald-400'}`}>
-                          {isExpired ? 'Closed' : 'Active'}
-                        </span>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
+          {/* Legend */}
+          <div className="flex items-center gap-6 justify-center text-sm glass rounded-xl py-3 mt-4">
+            <div className="flex items-center gap-2 text-gray-300">
+              <Check className="w-4 h-4 text-emerald-400" /> Present
             </div>
-          )}
+            <div className="flex items-center gap-2 text-gray-300">
+              <Clock className="w-4 h-4 text-amber-400" /> Late
+            </div>
+            <div className="flex items-center gap-2 text-gray-300">
+              <X className="w-4 h-4 text-red-400 opacity-50" /> Absent
+            </div>
+          </div>
         </>
       )}
     </div>

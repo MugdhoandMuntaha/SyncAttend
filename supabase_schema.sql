@@ -1,5 +1,5 @@
 -- ============================================
--- AttendEase - Supabase Database Schema
+-- SyncAttend - Supabase Database Schema
 -- Run this in your Supabase SQL Editor
 -- ============================================
 

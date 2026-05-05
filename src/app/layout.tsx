@@ -5,7 +5,7 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
 export const metadata: Metadata = {
-  title: "AttendEase — Smart Attendance System",
+  title: "SyncAttend — Smart Attendance System",
   description: "A DBMS-powered attendance system with anti-cheat mechanisms for teachers and students.",
 };
 
